@@ -1,5 +1,6 @@
-#include <opencv2/core/core.hpp>
-#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/core.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgcodecs.hpp>
 #include <opencv2/opencv.hpp>
 #include "utils.h"
 #include <cuda.h>
@@ -14,6 +15,7 @@ unsigned char *d_greyImage__;
 
 size_t numRows() { return imageRGBA.rows; }
 size_t numCols() { return imageRGBA.cols; }
+using namespace cv;
 
 //return types are void since any internal error will be handled by quitting
 //no point in returning error codes...
@@ -26,14 +28,14 @@ void preProcess(uchar4 **inputImage, unsigned char **greyImage,
   //make sure the context initializes ok
   checkCudaErrors(cudaFree(0));
 
-  cv::Mat image;
-  image = cv::imread(filename.c_str(), CV_LOAD_IMAGE_COLOR);
+  Mat image;
+  image = imread(filename.c_str(), IMREAD_COLOR);
   if (image.empty()) {
     std::cerr << "Couldn't open file: " << filename << std::endl;
     exit(1);
   }
 
-  cv::cvtColor(image, imageRGBA, CV_BGR2RGBA);
+  cvtColor(image, imageRGBA, COLOR_BGR2RGBA);
 
   //allocate memory for the output
   imageGrey.create(image.rows, image.cols, CV_8UC1);
@@ -62,10 +64,10 @@ void preProcess(uchar4 **inputImage, unsigned char **greyImage,
 }
 
 void postProcess(const std::string& output_file, unsigned char* data_ptr) {
-  cv::Mat output(numRows(), numCols(), CV_8UC1, (void*)data_ptr);
+  Mat output(numRows(), numCols(), CV_8UC1, (void*)data_ptr);
 
   //output the image
-  cv::imwrite(output_file.c_str(), output);
+  imwrite(output_file.c_str(), output);
 }
 
 void cleanup()
@@ -77,8 +79,8 @@ void cleanup()
 
 void generateReferenceImage(std::string input_filename, std::string output_filename)
 {
-  cv::Mat reference = cv::imread(input_filename, CV_LOAD_IMAGE_GRAYSCALE);
+  Mat reference = imread(input_filename, IMREAD_GRAYSCALE);
 
-  cv::imwrite(output_filename, reference);
+  imwrite(output_filename, reference);
 
 }
