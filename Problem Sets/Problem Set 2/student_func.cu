@@ -9,95 +9,6 @@
 // multiply each weight with the pixel underneath it. Finally, we add up all of the
 // multiplied numbers and assign that value to our output for the current pixel.
 // We repeat this process for all the pixels in the image.
-
-// To help get you started, we have included some useful notes here.
-
-//****************************************************************************
-
-// For a color image that has multiple channels, we suggest separating
-// the different color channels so that each color is stored contiguously
-// instead of being interleaved. This will simplify your code.
-
-// That is instead of RGBARGBARGBARGBA... we suggest transforming to three
-// arrays (as in the previous homework we ignore the alpha channel again):
-//  1) RRRRRRRR...
-//  2) GGGGGGGG...
-//  3) BBBBBBBB...
-//
-// The original layout is known an Array of Structures (AoS) whereas the
-// format we are converting to is known as a Structure of Arrays (SoA).
-
-// As a warm-up, we will ask you to write the kernel that performs this
-// separation. You should then write the "meat" of the assignment,
-// which is the kernel that performs the actual blur. We provide code that
-// re-combines your blurred results for each color channel.
-
-//****************************************************************************
-
-// You must fill in the gaussian_blur kernel to perform the blurring of the
-// inputChannel, using the array of weights, and put the result in the outputChannel.
-
-// Here is an example of computing a blur, using a weighted average, for a single
-// pixel in a small image.
-//
-// Array of weights:
-//
-//  0.0  0.2  0.0
-//  0.2  0.2  0.2
-//  0.0  0.2  0.0
-//
-// Image (note that we align the array of weights to the center of the box):
-//
-//    1  2  5  2  0  3
-//       -------
-//    3 |2  5  1| 6  0       0.0*2 + 0.2*5 + 0.0*1 +
-//      |       |
-//    4 |3  6  2| 1  4   ->  0.2*3 + 0.2*6 + 0.2*2 +   ->  3.2
-//      |       |
-//    0 |4  0  3| 4  2       0.0*4 + 0.2*0 + 0.0*3
-//       -------
-//    9  6  5  0  3  9
-//
-//         (1)                         (2)                 (3)
-//
-// A good starting place is to map each thread to a pixel as you have before.
-// Then every thread can perform steps 2 and 3 in the diagram above
-// completely independently of one another.
-
-// Note that the array of weights is square, so its height is the same as its width.
-// We refer to the array of weights as a filter, and we refer to its width with the
-// variable filterWidth.
-
-//****************************************************************************
-
-// Your homework submission will be evaluated based on correctness and speed.
-// We test each pixel against a reference solution. If any pixel differs by
-// more than some small threshold value, the system will tell you that your
-// solution is incorrect, and it will let you try again.
-
-// Once you have gotten that working correctly, then you can think about using
-// shared memory and having the threads cooperate to achieve better performance.
-
-//****************************************************************************
-
-// Also note that we've supplied a helpful debugging function called checkCudaErrors.
-// You should wrap your allocation and copying statements like we've done in the
-// code we're supplying you. Here is an example of the unsafe way to allocate
-// memory on the GPU:
-//
-// cudaMalloc(&d_red, sizeof(unsigned char) * numRows * numCols);
-//
-// Here is an example of the safe way to do the same thing:
-//
-// checkCudaErrors(cudaMalloc(&d_red, sizeof(unsigned char) * numRows * numCols));
-//
-// Writing code the safe way requires slightly more typing, but is very helpful for
-// catching mistakes. If you write code the unsafe way and you make a mistake, then
-// any subsequent kernels won't compute anything, and it will be hard to figure out
-// why. Writing code the safe way will inform you as soon as you make a mistake.
-
-// Finally, remember to free the memory you allocate at the end of the function.
-
 //****************************************************************************
 
 #include "utils.h"
@@ -107,86 +18,28 @@ void gaussian_blur(const unsigned char* const inputChannel,
 				unsigned char* const outputChannel,
 				int numRows, int numCols,
 				const float* const filter, const int filterWidth){
-	// TODO
 
-	// NOTE: Be sure to compute any intermediate results in floating point
-	// before storing the final result as unsigned char.
-
-	// NOTE: Be careful not to try to access memory that is outside the bounds of
-	// the image. You'll want code that performs the following check before accessing
-	// GPU memory:
-	//
-	// if ( absolute_image_position_x >= numCols ||
-	//      absolute_image_position_y >= numRows )
-	// {
-	//     return;
-	// }
-
-	// NOTE: If a thread's absolute position 2D position is within the image, but some of
-	// its neighbors are outside the image, then you will need to be extra careful. Instead
-	// of trying to read such a neighbor value from GPU memory (which won't work because
-	// the value is out of bounds), you should explicitly clamp the neighbor values you read
-	// to be within the bounds of the image. If this is not clear to you, then please refer
-	// to sequential reference solution for the exact clamping semantics you should follow.
-
-	const int2 p = make_int2(threadIdx.x, blockIdx.x);
-	if(threadIdx.x >= numCols){
-		printf("Returning from gaussian blur. Thread Index too high\n");
-		return;
-	}
-	if(blockIdx.x >=numRows){
-		printf("Returning from gaussian blur. blockIndex too high\n");
-		return;
-	}
-
+	//TODO: 
+	const int2 pixel = make_int2(blockIdx.x % numCols,blockIdx.x/numCols);
+	printf("[%i][%i]\n", pixel.x, pixel.y);
 	assert(filterWidth % 2 == 1);
-	float runningTotal = 0;
-	float imageValue = 0;
-	float filterValue = 0;
-	int starterRow = blockIdx.x;
-	int starterPixel = threadIdx.x;
-	int filter_r = 0;
-	for(int row = -filterWidth/2; row <= filterWidth/2; row++){
-		int filter_c = 0;
-		int imageRow; 
-		imageRow = starterRow + row;
-		for(int col = -filterWidth/2; col <= filterWidth/2; col++){
-			int imageCol;
-			imageCol = starterPixel + col;
-			//TODO:For each pixel, get the surround pixel values multiplied by the map and add them together;
-			//TODO: Clamp to max to not roll-over edge of matrix;
 
-			// Check that the surrounding pixels are not out of bounds
-			// imageRow = imageRow < 0 ? 0 : imageRow;
-			// imageRow = imageRow >= numRows ? numRows - 1 : imageRow;
-			// // Checl that the surrounding pixels are not out of bounds
-			// imageCol = imageCol < 0 ? 0 : imageCol;
-			// imageCol = imageCol >= numCols ? numCols - 1 : imageCol;
-
-			
-			int imageArrayLocation = imageRow*numCols + imageCol;
-			// printf("[%i][%i]\n", imageRow, imageCol);
-			// printf("[%i]\n", imageArrayLocation);
-			imageValue = static_cast<float>(inputChannel[imageArrayLocation]);
-			filterValue = filter[filterWidth*filter_r + filter_c];
-			runningTotal += imageValue * filterValue;
-			// printf("Image Value: %f\n", imageValue);
-			// printf("Filter Value: %f\n", filterValue);
-			filter_c++;
-		}
-		filter_r++;
+	if(pixel.x >= numCols || pixel.y >= numRows){
+		return;
 	}
-	// runningTotal = (int)runningTotal;
-	// printf("%i\n", runningTotal);
-	// printf("%i\n", starterRow);
-	// if(blockIdx.x < 10){
-	// 	printf("Block ID: %i\n", blockIdx.x);
-	// }
-	outputChannel[blockIdx.x*blockDim.x + threadIdx.x] = runningTotal;
+	int2 image_pixel = make_int2(pixel.x + (threadIdx.x - filterWidth/2), pixel.y + (threadIdx.y - filterWidth/2));
+	int2 filter_pixel = make_int2(threadIdx.x, threadIdx.y);
+	float filter_value = filter[filter_pixel.x + filter_pixel.y * filterWidth];
+	
+	image_pixel.y = min(max(image_pixel.y, 0), numCols);
+	image_pixel.x = min(max(image_pixel.x, 0), numRows);
+	int arrayIndex = image_pixel.y * numCols + image_pixel.x;
+	int return_value = filter_value * static_cast<float>(inputChannel[arrayIndex]);
+	outputChannel[pixel.x + pixel.y*numCols] += return_value;
 }
 
-//This kernel takes in an image represented as a uchar4 and splits
-//it into three images consisting of only one color channel each
+// This kernel takes in an image represented as a uchar4 and splits
+// it into three images consisting of only one color channel each
 __global__
 void separateChannels(const uchar4* const inputImageRGBA,
 											int numRows,
@@ -194,16 +47,26 @@ void separateChannels(const uchar4* const inputImageRGBA,
 											unsigned char* const redChannel,
 											unsigned char* const greenChannel,
 											unsigned char* const blueChannel)
-{
-		if(threadIdx.x >= numCols || blockIdx.x >= numRows){
+{ // TODO: Implement this with a multi-dimensional grid and block size
+	// Generating an int2 allows for an easy way to verify if you're within
+	// the bounds of the image being parsed
+	const int2 pixel = make_int2(threadIdx.x, blockIdx.x);
+	// Calculate the 1-D index of the pixel to store into the output arrays
+	const int index = pixel.y * numCols + pixel.x;
+
+	// Validate that pixel in question is within the image, print statement isn't
+	// required but helped when troubleshooting
+		if(pixel.x >= numCols || pixel.y >= numRows){
 			printf("Thread returning from separateChannels, out of bounds\n");
 			return;
 		}
-		int index = threadIdx.x + blockDim.x * blockIdx.x;
-		uchar4 pixel = inputImageRGBA[index];
-		redChannel[index] = pixel.x;
-		greenChannel[index] = pixel.y;
-		blueChannel[index] = pixel.z;
+
+		// This is the actual pixel from the image that needs it's constituent parts
+		// broken down
+		uchar4 p = inputImageRGBA[index];
+		redChannel[index] = p.x;
+		greenChannel[index] = p.y;
+		blueChannel[index] = p.z;
 }
 
 __global__ 
@@ -211,17 +74,17 @@ void checkLastValue(int numRows, int numCols, const unsigned char* const redChan
 					const unsigned char* const greenChannel,
 					const unsigned char* const blueChannel){
 					
-	// printf("Red channel: %i\n",redChannel[(numRows*numCols) - 1]);
-	// printf("Green channel: %i\n",greenChannel[(numRows*numCols) - 1]);
-	// printf("Blue channel: %i\n",blueChannel[(numRows*numCols) - 1]);
+	printf("Red channel: %i\n",redChannel[(numRows*numCols) - 1]);
+	printf("Green channel: %i\n",greenChannel[(numRows*numCols) - 1]);
+	printf("Blue channel: %i\n",blueChannel[(numRows*numCols) - 1]);
 }
 __global__
 void checkLastPixelInOutput(int numRows, int numCols, const uchar4* const inputImageRGBA){
 	int index = numCols * numRows - 1;
 	uchar4 pixel = inputImageRGBA[index];
-	// printf("Red channel, output image: %i\n", pixel.x);
-	// printf("Green channel, output image: %i\n", pixel.y);
-	// printf("Blue channel, output image: %i\n", pixel.z);
+	printf("Red channel, output image: %i\n", pixel.x);
+	printf("Green channel, output image: %i\n", pixel.y);
+	printf("Blue channel, output image: %i\n", pixel.z);
 }
 //This kernel takes in three color channels and recombines them
 //into one image.  The alpha channel is set to 255 to represent
@@ -234,14 +97,13 @@ void recombineChannels(const unsigned char* const redChannel,
 											 int numRows,
 											 int numCols)
 {
-	const int2 thread_2D_pos = make_int2( blockIdx.x * blockDim.x + threadIdx.x,
-																				blockIdx.y * blockDim.y + threadIdx.y);
+	const int2 thread_2D_pos = make_int2( threadIdx.x, blockIdx.x);
 
-	const int thread_1D_pos = blockIdx.x* numCols + threadIdx.x;
+	const int thread_1D_pos = blockIdx.x * numCols + threadIdx.x;
 
 	//make sure we don't try and access memory outside the image
 	//by having any threads mapped there return early
-	if (threadIdx.x >= numCols || blockIdx.x >= numRows)
+	if (thread_2D_pos.x >= numCols || thread_2D_pos.y >= numRows)
 		return;
 
 	unsigned char red   = redChannel[thread_1D_pos];
@@ -291,29 +153,29 @@ void your_gaussian_blur(const uchar4 * const h_inputImageRGBA, uchar4 * const d_
 												unsigned char *d_blueBlurred,
 												const int filterWidth)
 {
-	//TODO: Set reasonable block size (i.e., number of threads per block)
-	// const dim3 blockSize = (numCols, 1, 1);
+	
+	// The aim of this iteration of the software is to launch a block for every pixel 
+	// in the image and a thread for every pixel in the filter. For the example image
+	// that is 557x313 pixels this would spawn 14,121,621 threads in total. 
+	// I'm unaware of performance limitations with this method but it's possible
+	// that having this large quantity of blocks could cause issues.
+	// This method of determining grid size is reasonable even for very large images
+	// as long as the GPU in use has compute capability >= 3.0;
+	const dim3 blockSize(filterWidth*filterWidth);
+	const dim3 gridSize(numCols*numRows);
 
-	//TODO:
-	//Compute correct grid size (i.e., number of blocks per kernel launch)
-	//from the image size and and block size.
-	// const dim3 gridSize = (numRows, 1, 1);
-	// blockSize.x = numCols;
-	// gridSize.x = numRows;
-
-	const dim3 blockSize(numCols);
-	const dim3 gridSize(numRows);
-	//TODO: Launch a kernel for separating the RGBA image into different color channels
-	separateChannels<<<gridSize, blockSize>>>(d_inputImageRGBA, numRows, numCols, d_red, d_green, d_blue);
+	// TODO: Define new grid and block sizes for separateChannels call as the advanced version
+	// of this processing is not required;
+	separateChannels<<<numRows, numCols>>>(d_inputImageRGBA, numRows, numCols, d_red, d_green, d_blue);
 	// Call cudaDeviceSynchronize(), then call checkCudaErrors() immediately after
 	// launching your kernel to make sure that you didn't make any mistakes.
 	cudaDeviceSynchronize(); checkCudaErrors(cudaGetLastError());
 	checkLastValue<<<1,1>>>(numRows, numCols, d_red, d_green, d_blue);
 	cudaDeviceSynchronize(); checkCudaErrors(cudaGetLastError());
 	//TODO: Call your convolution kernel here 3 times, once for each color channel.
-	gaussian_blur<<<gridSize,blockSize>>>(d_red, d_redBlurred, numRows, numCols, d_filter, filterWidth);
-	gaussian_blur<<<gridSize,blockSize>>>(d_green, d_greenBlurred, numRows, numCols, d_filter, filterWidth);
-	gaussian_blur<<<gridSize,blockSize>>>(d_blue, d_blueBlurred, numRows, numCols, d_filter, filterWidth);
+	gaussian_blur<<<2,blockSize>>>(d_red, d_redBlurred, numRows, numCols, d_filter, filterWidth);
+	// gaussian_blur<<<gridSize,blockSize>>>(d_green, d_greenBlurred, numRows, numCols, d_filter, filterWidth);
+	// gaussian_blur<<<gridSize,blockSize>>>(d_blue, d_blueBlurred, numRows, numCols, d_filter, filterWidth);
 	cudaDeviceSynchronize(); checkCudaErrors(cudaGetLastError());
 	checkLastValue<<<1,1>>>(numRows, numCols, d_redBlurred, d_greenBlurred, d_blueBlurred);
 	cudaDeviceSynchronize(); checkCudaErrors(cudaGetLastError());
@@ -325,7 +187,7 @@ void your_gaussian_blur(const uchar4 * const h_inputImageRGBA, uchar4 * const d_
 	//
 	// NOTE: This kernel launch depends on the gridSize and blockSize variables,
 	// which you must set yourself.
-	recombineChannels<<<gridSize, blockSize>>>(d_redBlurred, d_greenBlurred, d_blueBlurred,
+	recombineChannels<<<numRows, numCols>>>(d_redBlurred, d_greenBlurred, d_blueBlurred,
 											d_outputImageRGBA,numRows,numCols);
 	checkLastPixelInOutput<<<1,1>>>(numRows, numCols, d_outputImageRGBA);
 	cudaDeviceSynchronize(); checkCudaErrors(cudaGetLastError());
